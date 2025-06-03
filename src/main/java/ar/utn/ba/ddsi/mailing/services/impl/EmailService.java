@@ -34,9 +34,13 @@ public class EmailService implements IEmailService {
     public void procesarPendientes() {
         List<Email> pendientes = emailRepository.findByEnviado(false);
         for (Email email : pendientes) {
-            email.enviar();
-            email.setEnviado(true);
-            emailRepository.save(email);
+            try {
+                email.enviar();
+                email.setEnviado(true);
+                emailRepository.save(email);
+            } catch (Exception e) {
+                logger.error("Error al enviar el email ID {}: {}", email.getId(), e.getMessage());
+            }
         }
     }
 

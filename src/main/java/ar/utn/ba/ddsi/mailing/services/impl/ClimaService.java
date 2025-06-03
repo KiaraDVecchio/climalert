@@ -1,8 +1,9 @@
 package ar.utn.ba.ddsi.mailing.services.impl;
 
+import ar.utn.ba.ddsi.mailing.models.entities.Ciudad;
 import ar.utn.ba.ddsi.mailing.models.entities.Clima;
-import ar.utn.ba.ddsi.mailing.models.repositories.IClimaRepository;
 import ar.utn.ba.ddsi.mailing.models.dto.external.weatherapi.WeatherResponse;
+import ar.utn.ba.ddsi.mailing.models.repositories.IClimaRepository;
 import ar.utn.ba.ddsi.mailing.services.IClimaService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,33 +16,34 @@ import reactor.core.publisher.Mono;
 @Service
 public class ClimaService implements IClimaService {
     private static final Logger logger = LoggerFactory.getLogger(ClimaService.class);
-    private static final String[] CIUDADES_ARGENTINA = {
-        "Buenos Aires", "Cordoba", "Rosario", "Mendoza", "Tucuman",
-        "La Plata", "Mar del Plata", "Salta", "Santa Fe", "San Juan"
-    };
 
     private final IClimaRepository climaRepository;
     private final WebClient webClient;
     private final String apiKey;
+    private final String[] ciudadesArgentinas;
 
-    public ClimaService(
-            IClimaRepository climaRepository,
-            @Value("${weather.api.key}") String apiKey,
-            @Value("${weather.api.base-url}") String baseUrl) {
-        this.climaRepository = climaRepository;
-        this.apiKey = apiKey;
-        this.webClient = WebClient.builder()
-            .baseUrl(baseUrl)
-            .build();
+  public ClimaService(
+        IClimaRepository climaRepository,
+        @Value("${weather.api.key}") String apiKey,
+        @Value("${weather.api.base-url}") String baseUrl,
+        @Value("${ciudades.argentina}") String[] ciudadesArgentinas
+    ) {
+      this.climaRepository = climaRepository;
+      this.apiKey = apiKey;
+      this.ciudadesArgentinas = ciudadesArgentinas;
+
+      this.webClient = WebClient.builder()
+          .baseUrl(baseUrl)
+          .build();
     }
 
-    @Override
+  @Override
     public Mono<Void> actualizarClimaCiudades() {
-        return Flux.fromArray(CIUDADES_ARGENTINA)
+        return Flux.fromArray(ciudadesArgentinas)
             .flatMap(this::obtenerClimaDeAPI)
             .flatMap(clima -> {
                 climaRepository.save(clima);
-                logger.info("Clima actualizado para: {}", clima.getCiudad());
+                logger.info("Clima actualizado para: {}", clima.getCiudad().getNombre());
                 return Mono.empty();
             })
             .onErrorResume(e -> {
@@ -62,16 +64,20 @@ public class ClimaService implements IClimaService {
             .retrieve()
             .bodyToMono(WeatherResponse.class)
             .map(response -> {
-                Clima clima = new Clima();
-                clima.setCiudad(ciudad);
-                clima.setRegion(response.getLocation().getRegion());
-                clima.setPais(response.getLocation().getCountry());
-                clima.setTemperaturaCelsius(response.getCurrent().getTemp_c());
-                clima.setTemperaturaFahrenheit(response.getCurrent().getTemp_f());
-                clima.setCondicion(response.getCurrent().getCondition().getText());
-                clima.setVelocidadVientoKmh(response.getCurrent().getWind_kph());
-                clima.setHumedad(response.getCurrent().getHumidity());
-                return clima;
+              Clima clima = new Clima();
+              Ciudad ciudadObj = new Ciudad(
+                  response.getLocation().getName(),
+                  response.getLocation().getRegion(),
+                  response.getLocation().getCountry()
+              );
+              clima.setCiudad(ciudadObj);
+              clima.setTemperaturaCelsius(response.getCurrent().getTemp_c());
+              clima.setTemperaturaFahrenheit(response.getCurrent().getTemp_f());
+              clima.setCondicion(response.getCurrent().getCondition().getText());
+              clima.setVelocidadVientoKmh(response.getCurrent().getWind_kph());
+              clima.setHumedad(response.getCurrent().getHumidity());
+
+              return clima;
             });
     }
 } 
